@@ -1,0 +1,199 @@
+starttime := Realtime();
+p := 2^31 - 1;
+F := FiniteField(p);
+
+//SetSeed(45);
+SetNthreads(8);
+t := 8;
+
+alpha := 431068841;
+beta := 344800445;
+
+
+ARC := function(v, r, rc)
+  for i in [1..t] do
+    v[i] +:= rc[t*(r-1) + i];
+  end for;
+  return v;
+end function;
+
+S_quad_NF := function(v1, v2, v3, i, EqList)
+  // Compute the quadratic function
+  Li := (i-2)*v1 + v2 + v3;
+
+  return (NormalForm(Li^2, EqList) + (i-2)*alpha*Li + (i-2)^2 * beta);
+end function;
+
+
+S_NF := function(v, EqList)
+  // Compute the full nonlinear layer from Griffin
+
+  for i in [t..4 by -1] do
+    v[i] := NormalForm(v[i]*S_quad_NF(v[1], v[2], v[i-1], i, EqList), EqList);
+  end for;
+
+  v[3] := NormalForm(v[3]*S_quad_NF(v[1], v[2], 0, 3, EqList), EqList);
+
+  return v;
+end function;
+
+
+GenSystem := function(CicoSize, d, Nr, M)
+  rc := [Random(F) : i in [1..t*Nr]];
+
+  weights := [3^(i-1) : i in [1..Nr]] cat [3^(i-1) : i in [1..Nr]] cat [d : i in [1..CicoSize]];
+  R := PolynomialRing(F, CicoSize + 2*Nr, "grevlexw", weights);
+  AssignNames(~R, ["z" cat Sprint(i): i in [1..Nr]] cat ["y" cat Sprint(i): i in [1..Nr]] cat ["x" cat Sprint(i) : i in [1..CicoSize]]);
+  x := [R.i : i in [2*Nr+1..2*Nr + CicoSize]];
+  y := [R.i : i in [Nr+1..2*Nr]];
+  z := [R.i : i in [1..Nr]];
+
+  MR := Matrix(R, M);
+  EqList := [];
+
+  v := Vector(R, [x[i] : i in [1..CicoSize]] cat [0 : i in [CicoSize+1..t]]);
+  v := v * Transpose(MR);
+  
+  for i in [1..Nr] do
+    v := ARC(v, i, rc);
+
+    // Partial nonlinear layer
+    Append(~EqList, z[i]^d - v[1]);
+    Append(~EqList, y[i] - v[2]);
+    v[1] := z[i];
+    v[2] := y[i]^d;
+
+    v := S_NF(v, EqList);
+    v := v * Transpose(MR);
+  end for;
+
+  for i in [t-CicoSize+1..t] do
+    Append(~EqList, v[i]);
+  end for;
+
+  return EqList;
+end function;
+
+
+
+
+SolvingDegree := function(EqList)
+  // Compute the degree at which the Grobner basis is full
+  S := GroebnerBasis(EqList);
+
+  max_deg_GB := Max([WeightedDegree(pol) : pol in S]);
+
+  len_GB := # S;
+
+  D_cur := max_deg_GB;
+  S_cur := GroebnerBasis(EqList, D_cur);
+
+  while ((# S_cur) lt len_GB) do
+    D_cur := D_cur + 1;
+    S_cur := GroebnerBasis(S_cur, D_cur);
+  end while;
+
+  return D_cur;
+end function;
+
+
+
+IdealDegree := function(EqList)
+  I := Ideal(EqList);
+
+  // Change order to grevlex (no function for computing ideal degrees for weighted systems)
+  I := ChangeOrder(I, "grevlex");
+  S:= GroebnerBasis(I);
+
+  // Homogeneize the Grobner basis (no degree function for affine systems)
+  I := Ideal(S);
+  I_hom := Homogenization(I, false);
+
+  return Degree(I_hom);
+end function;
+
+
+ExperimentIdealDegree := function(CicoSize, d, Nr, M)
+  printf "Computing system for c=%o, d=%o, R=%o\n", CicoSize, d, Nr;
+
+  EqList := GenSystem(CicoSize, d, Nr, M);
+
+  print "\nLeading monomials of the Equations:\n";
+
+  for pol in EqList do
+    printf "%o\n", LeadingMonomial(pol);
+  end for;
+
+  printf "\nIdeal Degree: %o\n", IdealDegree(EqList);
+
+  return 0;
+end function;
+
+
+ExperimentSolvingDegree := function(CicoSize, d, Nr, M)
+  printf "Computing degree of regularity for c=%o, d=%o, R=%o\n", CicoSize, d, Nr;
+
+  EqList := GenSystem(CicoSize, d, Nr, M);
+
+  printf "Degree of regularity: %o\n\n", SolvingDegree(EqList);
+
+  return 0;
+end function;
+
+
+// Influence of the linear layer on the ideal degree 
+CicoSize := 3;
+Nr := 2;
+d := 3;
+
+print "Case of the original Griffin matrix\n";
+
+M := Matrix(F, [[10, 14, 2, 6, 5, 7, 1, 3],
+    [8, 12, 2, 2, 4, 6, 1, 1],
+    [2, 6, 10, 14, 1, 3, 5, 7],
+    [2, 2, 8, 12, 1, 1, 4, 6],
+    [5, 7, 1, 3, 10, 14, 2, 6],
+    [4, 6, 1, 1, 8, 12, 2, 2],
+    [1, 3, 5, 7, 2, 6, 10, 14],
+    [1, 1, 4, 6, 2, 2, 8, 12]]);
+
+status := ExperimentIdealDegree(CicoSize, d, Nr, M);
+
+
+print "Case of an MDS matrix\n";
+
+// MDS Matrix
+M := Matrix(F, [[3840, 24, 4728, 2952, 258912, 99840, 94222, 74400],
+      [1386, 78, 280, 1218, 32256, 13044, 8120, 6496],
+      [6180, 743, 10416, 4428, 508032, 194858, 193984, 153056],
+      [432, 400, 1920, 144, 73728, 27776, 30400, 23936],
+      [10122, 1246, 5320, 8526, 346752, 136724, 108570, 86184],
+      [950, 1052, 5424, 240, 202944, 76333, 84683, 66656],
+      [2564, 16, 3072, 1920, 172128, 66380, 62528, 49408],
+      [661, 35, 908, 585, 43008, 16448, 14512, 11456]]);
+
+status := ExperimentIdealDegree(CicoSize, d, Nr, M);
+
+
+
+// Experimental solving degree
+Nr := 2;
+CicoSize := 2;
+
+for d in [2, 3, 5, 7] do
+  status := ExperimentSolvingDegree(CicoSize, d, Nr, M);
+end for;
+
+
+CicoSize := 3;
+
+for d in [2, 3] do
+  status := ExperimentSolvingDegree(CicoSize, d, Nr, M);
+end for;
+
+Nr := 3;
+CicoSize := 2;
+d := 2;
+
+status := ExperimentSolvingDegree(CicoSize, d, Nr, M);
+

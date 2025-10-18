@@ -1,0 +1,165 @@
+// Poseidon regularity test in Magma
+SetMemoryLimit(40000000000);
+// load the generated parameters
+load "input.magma";
+
+gf := GF(PRIME);
+alpha := 3;
+gamma := 5;
+
+printf "Experiment parameters: ";
+printf "Field with modulus %o\n", PRIME;
+printf "RF1=%o, RP=%o, RF2=%o, alpha=%o, t=%o, CICO-%o instance\n", RF1, RP, RF2, alpha, t, k;
+SET_CONSTANT_ZERO := true;                     // skip constant addition, for getting only highest degree part
+
+// ------------------------------------  Poseidon Round Function ------------------------------------
+// Choose distinct x_i and y_j
+coeff_x := [Random(gf) : i in [1..t]];
+coeff_y := [Random(gf) : i in [1..t]];
+// Define the MDS matrix with entries Mi,j = 1 / (x_i + y_j)
+MDS := Matrix(gf, t, t, [1 / (coeff_x[i] + coeff_y[j]) : i in [1..t], j in [1..t]]); 
+
+// Poseidon round function components
+function AddC(in_state)
+    if SET_CONSTANT_ZERO eq true then
+        return in_state;
+    end if;
+    return [in_state[i] + Random(gf) : i in [1..#in_state]];
+end function;
+
+function MatMul(in_state)
+    res := [ &+[ in_state[i] * MDS[i,j] : i in [1..t] ] : j in [1..t] ];
+    return res;
+end function;
+
+function MatMulExt(in_state)
+    res := [ &+[ in_state[i] * MDS_ext[i,j] : i in [1..t] ] : j in [1..t] ];
+    return res;
+end function;
+
+function External_Sbox(in_state)
+    res := in_state;
+    for i in [0..(t_dash-1)] do
+        X0 := in_state[2*i+1];
+        X1 := in_state[2*i+2];
+
+        Y0 := (2*X0 + X1) + 3*(X0-X1)^2 + ( gamma + ( X0 - 2*X1) + (X0 - X1)^2 )^2;
+        Y1 := (X0 + 3*X1) + 4*(X0-X1)^2 + ( gamma + ( X0 - 2*X1) + (X0 - X1)^2 )^2;
+
+        res[2*i+1] := Y0;
+        res[2*i+2] := Y1;
+    end for;
+    return res;
+end function;
+
+function Partial_Sbox(in_state)
+    res := in_state;
+    res[1] := in_state[1]^alpha;
+    return res;
+end function;
+
+// Custom functions for debugging and printing
+procedure PrintPolys(polyList)
+    for i in [1..#polyList] do
+        printf "Polynomial %o: with degrees %o\n", i, [Degree(polyList[i], j) : j in [1..k+RP]];
+    end for;
+    printf "\n";
+end procedure; 
+
+// ------------------------------------  Polynomial ring and system setup ------------------------------------
+// Ring = Fp[y_1,y_2,...,y_RP, x_1,..., x_k]
+weight_vector := [4^(RF1) : i in [1..RP]] cat [alpha : i in [1..k]]; 
+R := PolynomialRing(gf, weight_vector);
+printf "\n";
+// Define variables
+var_names := ["y" cat IntegerToString(j) : j in [1..RP]] cat
+             ["x" cat IntegerToString(i) : i in [1..k]];
+AssignNames(~R, var_names);
+
+vars := [R.i : i in [1..k+RP]];     // Extract variables from the ring
+R; 
+
+print "Monomial order check: y1 > y2 > ... y_RP > x_1^(4^(RF-1)) > x_k^(4^(RF-1)) " ;
+printf "%o\n",[R.(j) gt R.(j+1) : j in [1..RP]] cat [ R.(RP) gt R.(RP+1)^((4^(RF1-1))) ] cat [R.(j)^((4^(RF1-1))) gt R.(j+1)^((4^(RF1-1))) : j in [RP+1..RP+k-1]];
+
+// ------------------------------------ Modelling ------------------------------------
+state := vars[RP+1..RP+k] cat [R!0 : i in [1..t-k]];                        // Initial state containing [x1,..,xk,0,...0]   
+printf "Initial state: %o\n", state;
+polySys := [];                                                              // Polynomial system where we keep track of new relations
+
+// First full rounds
+for j in [1..RF1] do
+    printf "First full round %o\n", j;                                                         
+    state := External_Sbox(MatMulExt(AddC(state)));
+end for;
+state := MatMul(state);
+printf "After first full rounds state is:\n";
+PrintPolys(state);
+
+// Partial rounds with reduction
+for j in [1..RP] do
+    printf "Partial round %o\n", j;                                                         
+    Append(~polySys, vars[j] - state[1]);                                   // Define yi - state[1] = 0 for each partial round, add the relation to polySys
+    state := [vars[j]] cat state[2..t];                                     // Update the first branch with the new variable
+    state := MatMul(Partial_Sbox(AddC(state)));
+    // reducing the state
+    S := quo<R | Ideal(polySys)>;                                           // R / <P1,..,Pi-1>
+    //print "%o\n", S;
+    for i in [1..#state] do
+        state[i] := ChangeRing(state[i],S);
+    end for;
+end for;
+PrintPolys(polySys);
+state := [HomogeneousComponent(state[i], Degree(state[i])) : i in [1..#state] ] ;                    // Remove all lower degree terms and only pass the top part to the final full rounds 
+printf "After partial rounds (before last full rounds) state is:\n";
+PrintPolys(state);
+
+// Final full rounds with reduction
+for j in [1..RF2] do
+    printf "Last Full round %o\n", j;                                                         
+    state := MatMulExt(External_Sbox(AddC(state))) ;
+end for;
+
+printf "Final state is:\n";
+PrintPolys(state);
+
+// Add equations Q1, Q2, ..., Qk = 0 to polySys  (final CICO-k constraints)
+for i in [1..k] do
+    Append(~polySys, state[i]);
+end for;
+polySys := [polySys[1]] cat [polySys[i] : i in [RP+1..#polySys] ];      // Remove P2,..., PRP
+
+
+// Final system contains P1,Q1,Q2,...,QK (in reduced form)
+printf "System contains:\n";
+for i in [1..#polySys] do
+    printf "Polynomial %o: with degrees %o, LT: %o\n", i, [Degree(polySys[i], j) : j in [1..k+RP]], LeadingTerm(polySys[i]);
+end for;
+
+// ------------------------------------ Hilbert Series Computation ------------------------------------
+// Restrict to smaller ring F[y_RP,x1,...,xk] ~ F[Z1,..,Zk+1]
+weight_vector_1 := [4^(RF1)] cat [alpha : i in [1..k]]; 
+R1 := PolynomialRing(gf, weight_vector_1);
+var_names_1 := ["Z" cat IntegerToString(i) : i in [1..k+1]];
+AssignNames(~R1, var_names_1);
+
+map := hom< R -> R1 | [0 : i in [1..RP-1]] cat [R1.(i): i in [1..k+1]] >;
+
+homSys := [ map( HomogeneousComponent(polySys[i], Degree(polySys[i])) ) : i in [1..#polySys] ];
+printf "\nTop Homogeneous system contains:\n";
+for i in [1..#homSys] do
+    printf "Polynomial %o: with degrees %o, in ring %o, LT: %o\n", i, [Degree(homSys[i], j) : j in [1..k+1]], Parent(homSys[i]), LeadingTerm(homSys[i]);
+end for;
+
+hs := HilbertSeries(Ideal(homSys));
+printf "\nHilbert Series of the homogeneous ideal:\n%o", hs;
+
+P<t> := PowerSeriesRing(Rationals(), Degree(hs)+10);
+HS := ( &*[1 - t^Degree(homSys[i]) : i in [1..#homSys] ] ) / ( &*[1 - t^Degree(R1.(i)) : i in [1..k+1] ] );
+printf "\nFrom Def 4:\n%o", HS;
+
+filename1 := arg_string cat "_HS_system.txt";
+filename2 := arg_string cat "_HS_expected.txt";
+Write(filename1, hs: Overwrite:=true);
+Write(filename2, HS: Overwrite:=true);
+quit;

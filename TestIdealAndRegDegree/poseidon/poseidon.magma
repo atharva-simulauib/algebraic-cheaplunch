@@ -1,0 +1,220 @@
+starttime := Realtime();
+//p := 2^31 - 2^24 + 1;
+p := 2147483693;
+F := FiniteField(p);
+
+//SetSeed(45);
+SetNthreads(8);
+
+t := 16;
+
+
+ME := Matrix(F, [[10, 14, 2, 6, 5, 7, 1, 3, 5, 7, 1, 3, 5, 7, 1, 3],
+  [8, 12, 2, 2, 4, 6, 1, 1, 4, 6, 1, 1, 4, 6, 1, 1],
+  [2, 6, 10, 14, 1, 3, 5, 7, 1, 3, 5, 7, 1, 3, 5, 7],
+  [2, 2, 8, 12, 1, 1, 4, 6, 1, 1, 4, 6, 1, 1, 4, 6],
+  [5, 7, 1, 3, 10, 14, 2, 6, 5, 7, 1, 3, 5, 7, 1, 3],
+  [4, 6, 1, 1, 8, 12, 2, 2, 4, 6, 1, 1, 4, 6, 1, 1],
+  [1, 3, 5, 7, 2, 6, 10, 14, 1, 3, 5, 7, 1, 3, 5, 7],
+  [1, 1, 4, 6, 2, 2, 8, 12, 1, 1, 4, 6, 1, 1, 4, 6],
+  [5, 7, 1, 3, 5, 7, 1, 3, 10, 14, 2, 6, 5, 7, 1, 3],
+  [4, 6, 1, 1, 4, 6, 1, 1, 8, 12, 2, 2, 4, 6, 1, 1],
+  [1, 3, 5, 7, 1, 3, 5, 7, 2, 6, 10, 14, 1, 3, 5, 7],
+  [1, 1, 4, 6, 1, 1, 4, 6, 2, 2, 8, 12, 1, 1, 4, 6],
+  [5, 7, 1, 3, 5, 7, 1, 3, 5, 7, 1, 3, 10, 14, 2, 6],
+  [4, 6, 1, 1, 4, 6, 1, 1, 4, 6, 1, 1, 8, 12, 2, 2],
+  [1, 3, 5, 7, 1, 3, 5, 7, 1, 3, 5, 7, 2, 6, 10, 14],
+  [1, 1, 4, 6, 1, 1, 4, 6, 1, 1, 4, 6, 2, 2, 8, 12]]);
+
+
+
+MI := Matrix(F, [[1447769218, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  [1, 477225892, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  [1, 1, 1412977646, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  [1, 1, 1, 236800159, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  [1, 1, 1, 1, 2140903375, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  [1, 1, 1, 1, 1, 1128905430, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  [1, 1, 1, 1, 1, 1, 1759404930, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  [1, 1, 1, 1, 1, 1, 1, 678268115, 1, 1, 1, 1, 1, 1, 1, 1],
+  [1, 1, 1, 1, 1, 1, 1, 1, 264074600, 1, 1, 1, 1, 1, 1, 1],
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1788232172, 1, 1, 1, 1, 1, 1],
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1524642800, 1, 1, 1, 1, 1],
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 584024219, 1, 1, 1, 1],
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1301449308, 1, 1, 1],
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1975659600, 1, 1],
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 768499818, 1],
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1388977208]]);
+
+
+
+
+ARC := function(v, R, rc)
+  for i in [1..t] do
+    v[i] +:= rc[t*(R-1) + i];
+  end for;
+  return v;
+end function;
+
+power_NF := function(pol, d, EqList)
+  // does double and add to compute normal form as often as possible
+  if d eq 0 then
+    return 1;
+  elif d eq 1 then
+    return pol;
+  elif (d mod 2) eq 1 then
+    poldoub := $$(pol, d div 2, EqList);
+    poldoub := NormalForm(poldoub * poldoub, EqList);
+    return NormalForm(pol * poldoub, EqList);
+  else
+    poldoub := $$(pol, d div 2, EqList);
+    return NormalForm(poldoub * poldoub, EqList);
+  end if;
+end function;
+
+S_partial := function(v, d)
+  v[t] := v[t]^d;
+  return v;
+end function;
+
+
+S_partial_NF := function(v, d, EqList)
+  v[t] := power_NF(v[t], d, EqList);
+  return v;
+end function;
+
+
+S_full := function(v, d)
+  for i in [1..t] do
+    v[i] := v[i]^d;
+  end for;
+  return v;
+end function;
+
+
+S_full_NF := function(v, d, EqList)
+  for i in [1..t] do
+    v[i] := power_NF(v[i], d, EqList);
+  end for;
+  return v;
+end function;
+
+S_partial_NF := function(v, d, EqList)
+  v[t] := power_NF(v[t], d, EqList);
+  return v;
+end function;
+
+
+GenSystem := function(CicoSize, d, Rf1, Rf2, RP)
+  RF := Rf1 + Rf2;
+  rc := [Random(F) : i in [1..t*(RF+RP)]];
+
+  // Weighted ordering for Generalized Freelunch system
+  weights := [d^(Rf1-1) : i in [1..RP]] cat [1 : i in [1..CicoSize]];
+  R := PolynomialRing(F, CicoSize + RP, "grevlexw", weights);
+  AssignNames(~R, ["y" cat Sprint(i): i in [1..RP]] cat ["x" cat Sprint(i) : i in [1..CicoSize]]);
+  x := [R.i : i in [RP+1..RP + CicoSize]];
+  y := [R.i : i in [1..RP]];
+  MRE := Matrix(R, ME);
+  MRI := Matrix(R, MI);
+  EqList := [];
+
+  v := Vector(R, [x[i] : i in [1..CicoSize]] cat [0 : i in [CicoSize+1..t]]);
+  v := v * Transpose(MRE);
+  // Full rounds
+  for i in [1..Rf1] do
+    v := ARC(v, i, rc);
+    v := S_full(v, d);
+    v := v * Transpose(MRE);
+  end for;
+  // Partial rounds
+  for i in [1..RP] do
+    v := ARC(v, i + Rf1, rc);
+    Append(~EqList, Normalize(y[i] - v[t]));
+    v[t] := y[i];
+    for j in [1..t] do
+      v[j] := NormalForm(v[j], EqList);
+    end for;
+    v := S_partial(v, d);
+    v := v * Transpose(MRI);
+  end for;
+  // Full rounds
+  for i in [1..Rf2] do
+    v := ARC(v, i + Rf1 + RP, rc);
+    v := S_full_NF(v, d, EqList);
+    v := v * Transpose(MRE);
+  end for;
+
+  for i in [t-CicoSize+1..t] do
+    Append(~EqList, v[i]);
+  end for;
+
+  return EqList;
+end function;
+
+
+SolvingDegree := function(EqList)
+  // Compute the degree at which the Grobner basis is full
+  S := GroebnerBasis(EqList);
+
+  max_deg_GB := Max([WeightedDegree(pol) : pol in S]);
+
+  len_GB := # S;
+
+  D_cur := max_deg_GB;
+  S_cur := GroebnerBasis(EqList, D_cur);
+
+  while ((# S_cur) lt len_GB) do
+    D_cur := D_cur + 1;
+    S_cur := GroebnerBasis(S_cur, D_cur);
+  end while;
+
+  return D_cur;
+end function;
+
+
+
+IdealDegree := function(EqList)
+  I := Ideal(EqList);
+
+  // Change order to grevlex (no function for computing ideal degrees for weighted systems)
+  I := ChangeOrder(I, "grevlex");
+  S:= GroebnerBasis(I);
+
+  // Homogeneize the Grobner basis (no degree function for affine systems)
+  I := Ideal(S);
+  I_hom := Homogenization(I, false);
+
+  return Degree(I_hom);
+end function;
+
+
+Experiment := function(CicoSize, d, Rf1, Rf2, RP)
+  printf "Computing system for c=%o, d=%o, Rf1=%o, Rf2=%o, RP=%o\n", CicoSize, d, Rf1, Rf2, RP;
+
+  EqList := GenSystem(CicoSize, d, Rf1, Rf2, RP);
+
+  print "\nLeading monomials of the Equations:\n";
+
+  for pol in EqList do
+    printf "%o\n", LeadingMonomial(pol);
+  end for;
+
+  printf "Degree of regularity: %o\n", SolvingDegree(EqList);
+  printf "Ideal Degree: %o\n", IdealDegree(EqList);
+
+  return 0;
+end function;
+
+
+
+CicoSize := 3;
+RF := 2;
+Rf1 := 1;
+Rf2 := 1;
+RP := 5;
+d := 3;
+
+
+status := Experiment(CicoSize, d, Rf1, Rf2, RP);
+
+

@@ -1,0 +1,303 @@
+starttime := Realtime();
+//p := 2^31 - 2^24 + 1;
+p := 2147483693;
+F := FiniteField(p);
+
+//SetSeed(45);
+SetNthreads(8);
+t := 8;
+
+MI := Matrix(F, [[1447769218, 1, 1, 1, 1, 1, 1, 1],
+                [1, 477225892, 1, 1, 1, 1, 1, 1],
+                [1, 1, 1412977646, 1, 1, 1, 1, 1],
+                [1, 1, 1, 236800159, 1, 1, 1, 1],
+                [1, 1, 1, 1, 2140903375, 1, 1, 1],
+                [1, 1, 1, 1, 1, 1128905430, 1, 1],
+                [1, 1, 1, 1, 1, 1, 1759404930, 1],
+                [1, 1, 1, 1, 1, 1, 1, 678268115]]);
+
+
+
+ME := Matrix(F, [[1, 0, 1, 0, 2, 0, 3, 0],
+                [0, 3, 0, 2, 0, 1, 0, 1],
+                [3, 0, 1, 0, 1, 0, 2, 0],
+                [0, 1, 0, 3, 0, 2, 0, 1],
+                [2, 0, 3, 0, 1, 0, 1, 0],
+                [0, 1, 0, 1, 0, 3, 0, 2],
+                [1, 0, 2, 0, 3, 0, 1, 0],
+                [0, 2, 0, 1, 0, 1, 0, 3]]);
+
+
+
+ARC := function(v, R, rc)
+  for i in [1..t] do
+    v[i] +:= rc[t*(R-1) + i];
+  end for;
+  return v;
+end function;
+
+power_NF := function(pol, d, EqList)
+  // does double and add to compute normal form as often as possible
+  if d eq 0 then
+    return 1;
+  elif d eq 1 then
+    return pol;
+  elif (d mod 2) eq 1 then
+    poldoub := $$(pol, d div 2, EqList);
+    poldoub := NormalForm(poldoub * poldoub, EqList);
+    return NormalForm(pol * poldoub, EqList);
+  else
+    poldoub := $$(pol, d div 2, EqList);
+    return NormalForm(poldoub * poldoub, EqList);
+  end if;
+end function;
+
+
+S_full_NF := function(v, EqList)
+  // Compute the Neptune full-round S-box
+  for i in [1..(t div 2)] do
+    tmp_sq  := power_NF(v[2*i-1] - v[2*i], 2, EqList);
+    tmp_add := power_NF(1 + v[2*i-1] - 2*v[2*i] - tmp_sq, 2, EqList);
+
+    v_odd_new  := 2*v[2*i-1] + v[2*i] +3*tmp_sq + tmp_add;
+    v_even_new := v[2*i-1] + 3*v[2*i] +4*tmp_sq + tmp_add;
+
+    v[2*i-1] := v_odd_new;
+    v[2*i] := v_even_new;
+  end for;
+  return v;
+end function;
+
+
+S_full_inv_NF := function(v, EqList)
+  // Compute the inverse the Neptune full-round S-box
+  for i in [1..(t div 2)] do
+    tmp_sq := 1 + power_NF(v[2*i] - v[2*i-1], 2, EqList);
+    v[2*i-1] := v[2*i-1] - tmp_sq;
+    v[2*i]   := v[2*i] - tmp_sq;
+
+    tmp_sq := power_NF((4*v[2*i-1] - 3*v[2*i]) / 5, 2, EqList);
+    v[2*i-1] := v[2*i-1] - 3*tmp_sq;
+    v[2*i] := v[2*i] - 4*tmp_sq;
+
+    v_odd_new  := (3*v[2*i-1] - v[2*i]) / 5;
+    v_even_new := (2*v[2*i] - v[2*i-1]) / 5;
+
+    v[2*i-1] := v_odd_new;
+    v[2*i] := v_even_new;
+  end for;
+  return v;
+end function;
+
+
+S_partial := function(v, d)
+  v[t] := v[t]^d;
+  return v;
+end function;
+
+
+S_partial_NF := function(v, d, EqList)
+  v[t] := power_NF(v[t], d, EqList);
+  return v;
+end function;
+
+
+VectorToList := function(v)
+  lis := [];
+
+  for i in [1..t] do
+    Append(~lis, v[i]);
+  end for;
+
+  return lis;
+end function;
+
+
+TupleToMatrix := function(R, tuple_list, CicoSize)
+  mat_list := [];
+
+  for i in [1..CicoSize] do
+    cur_list := [];
+
+    for j in [1..t] do
+      Append(~cur_list, (tuple_list.i)[j]);
+    end for;
+
+    Append(~mat_list, cur_list);
+  end for;
+
+  return Matrix(R, mat_list);  
+end function;
+
+
+GenSystem := function(CicoSize, d, Rf1, Rf2, RP)
+  RF := Rf1 + Rf2;
+  rc := [Random(F) : i in [1..t*(RF+RP)]];
+  log_d_diff_deg := Floor(Log(d, 4^(Rf1 - Rf2)));
+  trail_length := t - CicoSize;
+
+  // Weighted ordering for Generalized Freelunch system
+  weights := [d^(log_d_diff_deg) : i in [1..(RP-log_d_diff_deg-trail_length-1)]] cat [4^(Rf1 - Rf2) : i in [1..1]] cat [d^(log_d_diff_deg + 1) : i in [1..CicoSize]];
+  R := PolynomialRing(F, CicoSize + RP-log_d_diff_deg-trail_length, "grevlexw", weights);
+  AssignNames(~R, ["y" cat Sprint(i): i in [1..(RP-log_d_diff_deg-trail_length-1)]] cat ["z" : i in [1..1]] cat ["x" cat Sprint(i) : i in [1..CicoSize]]);
+  x := [R.i : i in [(RP-log_d_diff_deg-trail_length+1)..(RP-log_d_diff_deg-trail_length + CicoSize)]];
+  y := [R.i : i in [1..(RP-log_d_diff_deg-trail_length-1)]];
+  z := R.(RP-log_d_diff_deg-trail_length);
+
+  MRE := Matrix(R, ME);
+  MRI := Matrix(R, MI);
+  EqList := [];
+
+  orthogonal_space_for_trail := Matrix(F, [VectorToList((MI^i)[t]) : i in [0..(trail_length-1)]]);
+
+  basis := TupleToMatrix(R, NullspaceOfTranspose(orthogonal_space_for_trail), CicoSize);
+
+  v_before_partial_round := Vector(R, [x[i] : i in [1..CicoSize]]);
+  v := v_before_partial_round * basis;
+  
+  // Skipped partial rounds
+  for i in [1..trail_length] do
+    v := ARC(v, i + Rf1, rc);
+    v := S_partial(v, d);
+    v := v * Transpose(MRI);
+  end for;
+
+  // Partial rounds in the forward direction
+  for i in [1..(RP-log_d_diff_deg-trail_length-1)] do
+    v := ARC(v, i + Rf1 + trail_length, rc);
+    Append(~EqList, Normalize(y[i] - v[t]));
+    v[t] := y[i];
+    for j in [1..t] do
+      v[j] := NormalForm(v[j], EqList);
+    end for;
+    v := S_partial(v, d);
+    v := v * Transpose(MRI);
+  end for;
+
+
+  v := ARC(v, RP-log_d_diff_deg + Rf1, rc);
+  Append(~EqList, Normalize(z - v[t]));
+  v[t] := z;
+  for j in [1..t] do
+    v[j] := NormalForm(v[j], EqList);
+  end for;
+  v := S_partial_NF(v, d, EqList);
+  v := v * Transpose(MRI);
+
+  // No new variable introduced in the last partial rounds
+  for i in [(RP-log_d_diff_deg+1)..RP] do
+    v := ARC(v, i + Rf1, rc);
+    for j in [1..t] do
+      v[j] := NormalForm(v[j], EqList);
+    end for;
+    v := S_partial_NF(v, d, EqList);
+    v := v * Transpose(MRI);
+  end for;
+
+  // Full rounds in the forward direction
+  for i in [1..Rf2] do
+    v := ARC(v, i + Rf1 + RP, rc);
+    v := S_full_NF(v, EqList);
+    v := v * Transpose(MRE);
+  end for;
+
+  v_out := v;
+
+
+  MREinv := Matrix(R, ME^(-1));
+  v := v_before_partial_round * basis;
+
+  // Full rounds in the backward direction
+  for i in [1..Rf1] do
+    v := v * Transpose(MREinv);
+    v := ARC(v, Rf1 + 1 - i, rc);
+    v := S_full_inv_NF(v, EqList);
+  end for;
+  v := v * Transpose(MREinv);
+
+  v_in := v;
+
+  // Truncation-feedforward compression mode
+  for i in [t-CicoSize+1..t] do
+    Append(~EqList, v_out[i] + v_in[i]);
+  end for;
+
+  return EqList;
+end function;
+
+
+
+
+SolvingDegree := function(EqList)
+  // Compute the degree at which the Grobner basis is full
+  S := GroebnerBasis(EqList);
+
+  max_deg_GB := Max([WeightedDegree(pol) : pol in S]);
+
+  len_GB := # S;
+
+  D_cur := max_deg_GB;
+  S_cur := GroebnerBasis(EqList, D_cur);
+
+  while ((# S_cur) lt len_GB) do
+    D_cur := D_cur + 1;
+    S_cur := GroebnerBasis(S_cur, D_cur);
+  end while;
+
+  return D_cur;
+end function;
+
+
+
+IdealDegree := function(EqList)
+  I := Ideal(EqList);
+
+  // Change order to grevlex (no function for computing ideal degrees for weighted systems)
+  I := ChangeOrder(I, "grevlex");
+  S:= GroebnerBasis(I);
+
+  // Homogeneize the Grobner basis (no degree function for affine systems)
+  I := Ideal(S);
+  I_hom := Homogenization(I, false);
+
+  return Degree(I_hom);
+end function;
+
+
+
+Experiment := function(CicoSize, d, Rf1, Rf2, RP)
+  log_d_diff_deg := Floor(Log(d, 4^(Rf1 - Rf2)));
+  trail_length := t - CicoSize;
+  status := 0;
+
+  if (RP lt (trail_length + log_d_diff_deg + 1)) then
+    print "Error: RP is too small";
+    status := 1;
+  else
+    printf "Computing system for c=%o, d=%o, Rf1=%o, Rf2=%o, RP=%o (%o rounds skipped)\n", CicoSize, d, Rf1, Rf2, RP, trail_length;
+
+    EqList := GenSystem(CicoSize, d, Rf1, Rf2, RP);
+
+    print "\nLeading monomials of the Equations:\n";
+
+    for pol in EqList do
+      printf "%o\n", LeadingMonomial(pol);
+    end for;
+
+  printf "Degree of regularity: %o\n", SolvingDegree(EqList);
+  printf "Ideal Degree: %o\n", IdealDegree(EqList);
+  end if;
+
+  return status;
+end function;
+
+
+CicoSize := 3;
+Rf1 := 2;
+Rf2 := 1;
+RP := 8;
+d := 3;
+
+status := Experiment(CicoSize, d, Rf1, Rf2, RP);
+
+
