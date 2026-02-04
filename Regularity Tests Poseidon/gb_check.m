@@ -3,11 +3,14 @@ SetMemoryLimit(40000000000);
 // load the generated parameters
 load "input.magma";
 
+// redefine small RF and RP 
+RF := 1;
+RP := 15;
 printf "Experiment parameters: ";
 printf "Field with modulus %o\n", PRIME;
 printf "RF=%o, RP=%o, alpha=%o, t=%o, CICO-%o instance\n", RF, RP, alpha, t, k;
 printf "MDS dimension: %o\n", NumberOfRows(MDS);
-SET_CONSTANT_ZERO := true;                     // skip constant addition, for getting only highest degree part
+SET_CONSTANT_ZERO := false;                     // skip constant addition, for getting only highest degree part
 
 // ------------------------------------  Poseidon Round Function ------------------------------------
 // Choose distinct x_i and y_j
@@ -94,10 +97,6 @@ for j in [1..RP] do
 
 end for;
 
-state := [HomogeneousComponent(state[i], Degree(state[i])) : i in [1..#state] ] ;                    // Remove all lower degree terms and only pass the top part to the final full rounds 
-printf "After partial rounds (before last full rounds) state is:\n";
-PrintPolys(state);
-
 // Final full rounds with reduction
 for j in [1..RF] do
     printf "Last Full round %o\n", j;                                                         
@@ -114,8 +113,6 @@ PrintPolys(state);
 for i in [1..k] do
     Append(~polySys, state[i]);
 end for;
-polySys := [polySys[1]] cat [polySys[i] : i in [RP+1..#polySys] ];      // Remove P2,..., PRP
-
 
 // Final system contains P1,Q1,Q2,...,QK (in reduced form)
 printf "System contains:\n";
@@ -123,30 +120,20 @@ for i in [1..#polySys] do
     printf "Polynomial %o: with degrees %o, LT: %o\n", i, [Degree(polySys[i], j) : j in [1..k+RP]], LeadingTerm(polySys[i]);
 end for;
 
-// ------------------------------------ Hilbert Series Computation ------------------------------------
-// Restrict to smaller ring F[y_RP,x1,...,xk] ~ F[Z1,..,Zk+1]
-weight_vector_1 := [alpha^(RF-1)] cat [1 : i in [1..k]]; 
-R1 := PolynomialRing(gf, weight_vector_1);
-var_names_1 := ["Z" cat IntegerToString(i) : i in [1..k+1]];
-AssignNames(~R1, var_names_1);
 
-map := hom< R -> R1 | [0 : i in [1..RP-1]] cat [R1.(i): i in [1..k+1]] >;
+freeSys := [polySys[i] : i in [2..RP]];
+cheapSys := [polySys[1]] cat [polySys[i] : i in [RP+1..#polySys] ];      
+homSys :=  [ HomogeneousComponent(cheapSys[i], WeightedDegree(cheapSys[i]))  : i in [1..#cheapSys] ];
+J := IdealWithFixedBasis(homSys);
+printf "Computing Coordinate MAtrix of Qtop\n";
+MatJ:= CoordinateMatrix(J);
 
-homSys := [ map( HomogeneousComponent(polySys[i], WeightedDegree(polySys[i])) ) : i in [1..#polySys] ];
-printf "\nTop Homogeneous system contains:\n";
-for i in [1..#homSys] do
-    printf "Polynomial %o: with degrees %o, in ring %o, LT: %o\n", i, [Degree(homSys[i], j) : j in [1..k+1]], Parent(homSys[i]), LeadingTerm(homSys[i]);
+printf "GB {Qtop} -> GB {P,Q}\n";
+gb := freeSys;
+for i in [1..NumberOfRows(MatJ)] do
+    gb_element := &+[ MatJ[i,j] * cheapSys[j] : j in [1..#cheapSys] ] ;
+    print LeadingMonomial(gb_element);
+    Append(~gb, gb_element);
 end for;
 
-hs := HilbertSeries(Ideal(homSys));
-printf "\nHilbert Series of the homogeneous ideal:\n%o", hs;
-
-P<t> := PowerSeriesRing(Rationals(), Degree(hs)+10);
-HS := ( &*[1 - t^Degree(homSys[i]) : i in [1..#homSys] ] ) / ( &*[1 - t^Degree(R1.(i)) : i in [1..k+1] ] );
-printf "\nFrom Def 4:\n%o", HS;
-
-filename1 := arg_string cat "_HS_system.txt";
-filename2 := arg_string cat "_HS_expected.txt";
-Write(filename1, hs: Overwrite:=true);
-Write(filename2, HS: Overwrite:=true);
-quit;
+printf "Is a Groebner Basis %o\n", LeadingMonomialIdeal(Ideal(polySys)) eq LeadingMonomialIdeal(Ideal(gb));
