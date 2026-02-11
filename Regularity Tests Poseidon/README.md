@@ -4,6 +4,7 @@
 1) `generate_params_poseidon.sage` is obtained from the [code](https://extgit.isec.tugraz.at/krypto/hadeshash/-/tree/master/code?ref_type=heads) provided by the authors. This script is modified slightly to get desired formatting in the `poseidon_parameters.txt` file
 2) `run_regularity_test.py` reads the parameter and calls MAGMA subprocess to compute the Hilbert series, then compares the series to check if they match
 3) `regularity.py` is the core computation. It contains the Poseidon round functions. Here we construct the polynomial system, then compute the Hilbert series of the ideal and the expected Hilbert series, both of which are written in files for the python script to read compare.
+4) `gb_check.m`: Magma file to check that the Groebner basis of highest weighted homogeneous regular component gives the Groebner basis for the entire system. Use the same `input.magma` and redefine the parameters to smaller values for feasible computation time.
 
 ### Running the experiment
 

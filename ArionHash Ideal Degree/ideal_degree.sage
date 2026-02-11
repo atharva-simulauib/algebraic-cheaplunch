@@ -137,8 +137,6 @@ def arion_hash_ideal_degree_bound(t, k, r=1, e, alpha):
     degree_q = 1
     for j in range(1,k+1):
         degree_q *= degree_j(j)
-    degree_p = 1
-
     bezout_bound = alpha * (degree_q)
     return bezout_bound
 
