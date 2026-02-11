@@ -65,7 +65,9 @@ def sysGen(branches, cico_constraint, rounds=1, d_1=3, d_2= 7):
 
     variables =  ["y" + str(i) for i in range(rounds)] + ["x" + str(i) for i in range(cico_constraint)]
     print("Variables:",variables)
-    W = generate_weight_vector(branches, cico_constraint, rounds, d_1, d_2) 
+    W = generate_weight_vector(branches, cico_constraint, rounds, d_1, d_2)
+    denoms = [_.denominator() for _ in W]
+    W = [_*LCM(denoms) for _ in W] 
     print("weight: " +str(W))
 
     P = PolynomialRing(field, variables, order=TermOrder('wdegrevlex',W))
@@ -130,11 +132,13 @@ D_I_dict = { (arg1, arg2): sysGen(arg1, arg2, d_1=5, d_2=7) for (arg1, arg2) in 
 print(D_I_dict)
 
 # To test upper bound holds for the tested parameters: 
-def arion_hash_ideal_degree_bound(t, k, e, alpha):
+def arion_hash_ideal_degree_bound(t, k, r=1, e, alpha):
     degree_j = lambda j: 2**(t - j) * (e + 1) - e
     degree_q = 1
     for j in range(1,k+1):
         degree_q *= degree_j(j)
+    degree_p = 1
+
     bezout_bound = alpha * (degree_q)
     return bezout_bound
 

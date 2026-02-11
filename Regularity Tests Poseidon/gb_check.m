@@ -4,8 +4,8 @@ SetMemoryLimit(40000000000);
 load "input.magma";
 
 // redefine small RF and RP 
-RF := 1;
-RP := 15;
+RF := 2;
+RP := 2;
 printf "Experiment parameters: ";
 printf "Field with modulus %o\n", PRIME;
 printf "RF=%o, RP=%o, alpha=%o, t=%o, CICO-%o instance\n", RF, RP, alpha, t, k;
@@ -135,5 +135,6 @@ for i in [1..NumberOfRows(MatJ)] do
     print LeadingMonomial(gb_element);
     Append(~gb, gb_element);
 end for;
-
+SetVerbose("Groebner",2);
+printf "<LM(I)>\n:%o", LeadingMonomialIdeal(Ideal(polySys));
 printf "Is a Groebner Basis %o\n", LeadingMonomialIdeal(Ideal(polySys)) eq LeadingMonomialIdeal(Ideal(gb));
