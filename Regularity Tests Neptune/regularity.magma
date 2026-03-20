@@ -87,12 +87,12 @@ state := vars[RP+1..RP+k] cat [R!0 : i in [1..t-k]];                        // I
 printf "Initial state: %o\n", state;
 polySys := [];                                                              // Polynomial system where we keep track of new relations
 
+state := MatMulExt(state);
 // First full rounds
 for j in [1..RF1] do
     printf "First full round %o\n", j;                                                         
-    state := External_Sbox(MatMulExt(AddC(state)));
+    state := MatMulExt(External_Sbox(AddC(state)));
 end for;
-state := MatMul(state);
 printf "After first full rounds state is:\n";
 PrintPolys(state);
 

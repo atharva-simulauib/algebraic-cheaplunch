@@ -69,12 +69,12 @@ state := vars[RP+1..RP+k] cat [R!0 : i in [1..t-k]];                        // I
 printf "Initial state: %o\n", state;
 polySys := [];                                                              // Polynomial system where we keep track of new relations
 
+//state := MatMul(state);
 // First full rounds
 for j in [1..RF] do
     printf "First full round %o\n", j;                                                         
-    state := Sbox(MatMul(AddC(state)));
+    state := MatMul(Sbox(AddC(state)));
 end for;
-state := MatMul(state);
 printf "After first full rounds state is:\n";
 PrintPolys(state);
 
@@ -101,7 +101,7 @@ PrintPolys(state);
 // Final full rounds with reduction
 for j in [1..RF] do
     printf "Last Full round %o\n", j;                                                         
-    state := Sbox(MatMul(AddC(state)));
+    state := MatMul(Sbox(AddC(state)));
     for i in [1..#state] do                               
         state[i] := ChangeRing(state[i],S);
     end for;

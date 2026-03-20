@@ -39,7 +39,6 @@ result = subprocess.call(["magma","regularity.magma"], stdout=output_file)
 print("\n--> Finished magma computation\n", flush=True)
 
 
-
 print("\n--> Comparing Hilbert series\n", flush=True)
 expectedHS =open(f"{args.parameters}_HS_expected.txt", "r").read().replace(' ', '').replace('\n','').split('+')[::-1]
 systemHS = open(f"{args.parameters}_HS_system.txt", "r").read().replace(' ', '').replace('\n','').split("+")
