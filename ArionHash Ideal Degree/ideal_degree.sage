@@ -17,9 +17,9 @@ def generate_weight_vector(branches, cico_constraint, rounds, d_1, d_2):
     W = [1]
     for i in range(1,rounds):
         degree_i = ( 2**(branches-1) * (d_1+1) - d_1 )**i 
-        W.append( degree_i/ d_2 + 1 )
+        W.append( degree_i )
     for i in range(cico_constraint):
-        W.append(1)
+        W.append(d_2)
     return W
 
 # ArionHash evaluation round by round
@@ -107,34 +107,26 @@ def sysGen(branches, cico_constraint, rounds=1, d_1=3, d_2= 7):
         D_I = len(I.normal_basis())
         print( "Ideal degree:", D_I )
         if D_I == 1:
-            print(I.normal_basis())
-        weights_product = int(1)
-        for w in  W:
-            weights_product *= w 
-        delta = lambda t,j : int( 2**(t-j)*(d_1+1) - d_1 )
-        print( "Weighted Bezout bound (naive):", ( ( delta(branches, 1)**cico_constraint ) * d_2**rounds ) / weights_product )
-        print("Claimed bound:", ( ( delta(branches, 1)* delta(branches, cico_constraint+1)**(cico_constraint-1)  )* d_2**rounds ) / weights_product )
+            print("!!")
         print("\n\n")
-    #return D_I, polySys, P
-    return D_I
+    return D_I, polySys, P
+    #return D_I
 
 
-PRIME = 15013         # PRIME = 10007, d1 = 3 or PRIME = 15013, d1 = 5
+PRIME = 10007         # PRIME = 10007, d1 = 3 or PRIME = 15013, d1 = 5
 field = GF(PRIME)
 matrix_type = 1
-
-compute_ideal_degree = True
+compute_ideal_degree = False
 write_magma_input = False
 
 # set of parameters to test D_I for (in the format (branches, cico_constraint))
 parameters_list = [ (4,2), (5,2), (5,3), (6,2)]
 D_I_dict = { (arg1, arg2): sysGen(arg1, arg2, d_1=5, d_2=7) for (arg1, arg2) in parameters_list }
-print(D_I_dict)
 
 # To test upper bound holds for the tested parameters: 
-def arion_hash_ideal_degree_bound(t, k, r=1, e, alpha):
+def arion_hash_ideal_degree_bound(t, k, e, alpha, r=1):
     degree_j = lambda j: 2**(t - j) * (e + 1) - e
-    degree_q = 1
+    degree_q = (2**(t - 1) * (e + 1) - e) ** (r-1)
     for j in range(1,k+1):
         degree_q *= degree_j(j)
     bezout_bound = alpha * (degree_q)
