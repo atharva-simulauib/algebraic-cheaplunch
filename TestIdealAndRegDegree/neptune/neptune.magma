@@ -72,7 +72,7 @@ end function;
 S_full_inv_NF := function(v, EqList)
   // Compute the inverse the Neptune full-round S-box
   for i in [1..(t div 2)] do
-    tmp_sq := 1 + power_NF(v[2*i] - v[2*i-1], 2, EqList);
+    tmp_sq := power_NF(1 + v[2*i-1] - v[2*i], 2, EqList);
     v[2*i-1] := v[2*i-1] - tmp_sq;
     v[2*i]   := v[2*i] - tmp_sq;
 
@@ -290,6 +290,8 @@ Experiment := function(CicoSize, d, Rf1, Rf2, RP)
 
   return status;
 end function;
+
+
 
 
 CicoSize := 3;
