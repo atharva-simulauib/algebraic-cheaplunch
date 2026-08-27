@@ -4,7 +4,7 @@ SetMemoryLimit(40000000000);
 load "input.magma";
 
 // redefine small RF and RP 
-RF := 2;
+RF := 1;
 RP := 2;
 printf "Experiment parameters: ";
 printf "Field with modulus %o\n", PRIME;
@@ -75,9 +75,9 @@ polySys := [];                                                              // P
 // First full rounds
 for j in [1..RF] do
     printf "First full round %o\n", j;                                                         
-    state := Sbox(MatMul(AddC(state)));
+    state := MatMul(Sbox(AddC(state)));
 end for;
-state := MatMul(state);
+//state := MatMul(state);
 printf "After first full rounds state is:\n";
 PrintPolys(state);
 
@@ -100,7 +100,7 @@ end for;
 // Final full rounds with reduction
 for j in [1..RF] do
     printf "Last Full round %o\n", j;                                                         
-    state := Sbox(MatMul(AddC(state)));
+    state := MatMul(Sbox(AddC(state)));
     for i in [1..#state] do                               
         state[i] := ChangeRing(state[i],S);
     end for;
