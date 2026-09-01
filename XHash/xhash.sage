@@ -450,14 +450,14 @@ def compute_data(b, alpha, num_cico_vars, num_inv_alpha, skip_rounds=False):
     return D_I, dibound, deg_reg, deg_reg_bound, can_compute_G_from_Qtop, can_compute_GB_whole
 
 def print_line(b, alpha, num_cico_vars, num_inv_alpha):
-    di, dib, dr, drb, okbool, _  = compute_data(b, alpha, num_cico_vars, num_inv_alpha)
-    if okbool:
+    di, dib, dr, drb, can_compute_G_from_Qtop, can_compute_GB_whole = compute_data(b, alpha, num_cico_vars, num_inv_alpha)
+    if can_compute_G_from_Qtop and can_compute_GB_whole:
         mark = "\\cmark"
     else:
         mark = "\\xmark"
     print(f"({b},{num_cico_vars},{num_inv_alpha}) & {dr} & ({drb}) & {di} & ({dib}) & {mark} \\\\") 
 
-experiment_bound = 2^10
+experiment_bound = 2^12
 for alpha in [3,5]:
     for b in range(2,12):
         for num_cico_vars in range(2,b+1):
